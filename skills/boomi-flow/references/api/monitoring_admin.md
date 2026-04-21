@@ -107,13 +107,12 @@ Players are HTML page bundles that act as the runtime hosting environment for a 
 |---|---|---|
 | GET | `/{tenantId}/play` | List all player names — returns a JSON array of strings |
 | GET | `/{tenantId}/play/{name}` | Get player HTML content — returns `text/html` |
-| POST | `/{tenantId}/play/{name}` | Create a new player |
-| PUT | `/{tenantId}/play/{name}` | Update an existing player |
+| POST | `/{tenantId}/play/{name}` | Create or replace a player |
 | DELETE | `/{tenantId}/play/{name}` | Delete a player — returns 204 No Content |
 
-### Create / Update body format
+### Create / Replace body format
 
-Both POST and PUT send the HTML content as a form-encoded body:
+POST sends the HTML content as a form-encoded body:
 
 ```
 Content-Type: application/x-www-form-urlencoded; charset=UTF-8
@@ -121,15 +120,21 @@ Content-Type: application/x-www-form-urlencoded; charset=UTF-8
 player=<url-encoded HTML content>
 ```
 
-### Creating a player based on default
+### Updating a player
+
+There is no PUT method. To update a player, DELETE it then POST the new content:
 
 ```bash
-# 1. Fetch the default player HTML
-HTML=$(curl -s "{BASE_URL}/{tenantId}/play/default" \
+# 1. Fetch existing player HTML
+HTML=$(curl -s "{BASE_URL}/{tenantId}/play/{playerName}" \
   -H "x-boomi-flow-api-key: $FLOW_API_KEY" \
   -H "manywhotenant: $FLOW_TENANT_ID")
 
-# 2. POST it as a new named player
+# 2. Modify $HTML as needed, then DELETE + POST
+curl -s -X DELETE "{BASE_URL}/{tenantId}/play/{playerName}" \
+  -H "x-boomi-flow-api-key: $FLOW_API_KEY" \
+  -H "manywhotenant: $FLOW_TENANT_ID"
+
 curl -s -X POST "{BASE_URL}/{tenantId}/play/{playerName}" \
   -H "x-boomi-flow-api-key: $FLOW_API_KEY" \
   -H "manywhotenant: $FLOW_TENANT_ID" \
@@ -140,7 +145,6 @@ curl -s -X POST "{BASE_URL}/{tenantId}/play/{playerName}" \
 ### Notes
 
 - Player names are case-sensitive strings (e.g. `default`, `Claude-1`)
-- The PUT response returns the Boomi AtomSphere admin SPA HTML — this is expected; verify success by checking the list endpoint
 - Environments reference players by name via `defaultPlayerName` in the environment resource
 - The legacy `/api/play/1/player` endpoints are deprecated and return 404 on current regional instances
 
