@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "bc-flow",
+  "owner": {
+    "name": "Boomi"
+  },
+  "metadata": {
+    "description": "Boomi Flow development tools for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "bc-flow",
+      "description": "Boomi Flow development tools: skills and commands for building, deploying, and managing Boomi Flow applications",
+      "category": "development",
+      "source": "./"
+    }
+  ]
+}
