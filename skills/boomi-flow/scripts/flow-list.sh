@@ -43,7 +43,7 @@ echo "$RESPONSE_BODY" | jq -r '
   if type == "array" then .[]
   else .
   end
-  | "\(.id // "-")\t\(.name // "-")"
+  | "\(.id.id // "-")\t\(.developerName // "-")"
 ' | column -t -s $'\t'
 
 log_activity "flow-list" "success" "$RESPONSE_CODE"

@@ -27,19 +27,42 @@ if [[ -z "$flow_id" && -z "$flow_name" ]]; then
 fi
 
 if [[ -n "$flow_name" ]]; then
-  encoded_name=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$flow_name" 2>/dev/null || printf '%s' "$flow_name" | sed 's/ /%20/g')
-  url="$(build_flow_url "draw/1/flow/active/name/${encoded_name}")"
+  # Search design-time flows by developerName (paginate until found)
+  page=1
+  found=""
+  while true; do
+    url="$(build_flow_url "draw/1/flow")?page=${page}&pageSize=50"
+    flow_api GET "$url" -H "Accept: application/json"
+    if [[ "$RESPONSE_CODE" != "200" ]]; then
+      echo "ERROR: Failed to list flows (HTTP ${RESPONSE_CODE})" >&2
+      echo "$RESPONSE_BODY" >&2
+      exit 1
+    fi
+    count=$(echo "$RESPONSE_BODY" | jq 'if type == "array" then length else 0 end')
+    found=$(echo "$RESPONSE_BODY" | jq --arg name "$flow_name" '
+      if type == "array" then .[] else . end
+      | select(.developerName == $name)
+    ')
+    [[ -n "$found" ]] && break
+    [[ "$count" -lt 50 ]] && break
+    page=$((page + 1))
+  done
+  if [[ -z "$found" ]]; then
+    echo "ERROR: Flow not found: ${flow_name}" >&2
+    exit 1
+  fi
+  echo "$found" | jq '.'
+  flow_id=$(echo "$found" | jq -r '.id.id // empty')
+  log_activity "flow-get" "success" "200" "{\"flow_id\":\"${flow_id}\",\"flow_name\":\"${flow_name}\"}"
 elif [[ -n "$flow_id" ]]; then
-  url="$(build_flow_url "draw/1/flow/active/${flow_id}")"
-fi
-
-flow_api GET "$url" -H "Accept: application/json"
-
-if [[ "$RESPONSE_CODE" == "200" ]]; then
-  echo "$RESPONSE_BODY" | jq '.'
-  log_activity "flow-get" "success" "$RESPONSE_CODE" "{\"flow_id\":\"${flow_id}\",\"flow_name\":\"${flow_name}\"}"
-else
-  echo "ERROR: Failed to get flow (HTTP ${RESPONSE_CODE})" >&2
-  echo "$RESPONSE_BODY" >&2
-  exit 1
+  url="$(build_flow_url "draw/1/flow/${flow_id}")"
+  flow_api GET "$url" -H "Accept: application/json"
+  if [[ "$RESPONSE_CODE" == "200" ]]; then
+    echo "$RESPONSE_BODY" | jq '.'
+    log_activity "flow-get" "success" "$RESPONSE_CODE" "{\"flow_id\":\"${flow_id}\"}"
+  else
+    echo "ERROR: Failed to get flow (HTTP ${RESPONSE_CODE})" >&2
+    echo "$RESPONSE_BODY" >&2
+    exit 1
+  fi
 fi

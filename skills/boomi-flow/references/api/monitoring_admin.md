@@ -97,17 +97,52 @@ Base path: `/api/features/1/`
 
 ## Play API (Players)
 
-Base path: `/api/play/1/`
+Base path: `/{tenantId}/play/` (no `/api/` prefix — distinct from the draw/admin/run APIs)
 
-Players are customised flow runtime environments.
+Authentication: same headers as all other Flow API calls (`x-boomi-flow-api-key`, `manywhotenant`).
+
+Players are HTML page bundles that act as the runtime hosting environment for a flow. The "default" player is the built-in Boomi Flow player. Custom players are copies of an existing player's HTML, saved under a new name and customisable.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/play/1/player` | Get players |
-| GET | `/play/1/players` | List players |
-| GET | `/play/1/player/{id}` | Get specific player |
-| POST | `/play/1/player/{id}` | Update player |
-| DELETE | `/play/1/player/{id}` | Delete player |
+| GET | `/{tenantId}/play` | List all player names — returns a JSON array of strings |
+| GET | `/{tenantId}/play/{name}` | Get player HTML content — returns `text/html` |
+| POST | `/{tenantId}/play/{name}` | Create a new player |
+| PUT | `/{tenantId}/play/{name}` | Update an existing player |
+| DELETE | `/{tenantId}/play/{name}` | Delete a player — returns 204 No Content |
+
+### Create / Update body format
+
+Both POST and PUT send the HTML content as a form-encoded body:
+
+```
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+
+player=<url-encoded HTML content>
+```
+
+### Creating a player based on default
+
+```bash
+# 1. Fetch the default player HTML
+HTML=$(curl -s "{BASE_URL}/{tenantId}/play/default" \
+  -H "x-boomi-flow-api-key: $FLOW_API_KEY" \
+  -H "manywhotenant: $FLOW_TENANT_ID")
+
+# 2. POST it as a new named player
+curl -s -X POST "{BASE_URL}/{tenantId}/play/{playerName}" \
+  -H "x-boomi-flow-api-key: $FLOW_API_KEY" \
+  -H "manywhotenant: $FLOW_TENANT_ID" \
+  -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" \
+  --data-urlencode "player=$HTML"
+```
+
+### Notes
+
+- Player names are case-sensitive strings (e.g. `default`, `Claude-1`)
+- The PUT response returns the Boomi AtomSphere admin SPA HTML — this is expected; verify success by checking the list endpoint
+- Environments reference players by name via `defaultPlayerName` in the environment resource
+- The legacy `/api/play/1/player` endpoints are deprecated and return 404 on current regional instances
 
 ---
 
