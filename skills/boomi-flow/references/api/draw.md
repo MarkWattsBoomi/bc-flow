@@ -120,6 +120,19 @@ Map elements use a different, flow-scoped endpoint that includes the flow ID and
 
 > ⚠️ **The graph API is layout-only.** It only persists: `developerName`, `developerSummary`, `x`, `y`, `height`, `width`. It cannot create map elements or wire outcomes. Use the flow-scoped map element endpoint for all logic changes.
 
+> ⚠️ **The GET graph endpoint does NOT return element width/height.** Use these known canvas defaults when computing even-gap layouts:
+>
+> | elementType | width (px) |
+> |---|---|
+> | start | 60 |
+> | operator | 120 |
+> | message | 160 |
+> | input | 160 |
+> | step | 160 |
+> | decision | 160 |
+>
+> Even-gap formula: `x[n+1] = x[n] + width[n] + gap` (gap = 40px recommended). All elements at the same y.
+
 ## Integration Discovery
 
 | Method | Path | Description |

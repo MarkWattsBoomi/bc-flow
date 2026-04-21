@@ -279,6 +279,69 @@ Key `messageActions` fields:
 - `serviceActionName`: always `null` — action is identified by `uriPart`
 - `dataActions`: set to `null` when using `messageActions`
 
+**Operator map element (manipulates values):**
+
+```json
+{
+  "developerName": "Empty Components",
+  "elementType": "operator",
+  "x": 130,
+  "y": 250,
+  "operations": [
+    {
+      "valueElementToApplyId": {
+        "id": "<value-element-id>",
+        "typeElementPropertyId": null,
+        "command": null
+      },
+      "valueElementToReferenceId": null,
+      "operand": "EMPTY",
+      "order": 0,
+      "disabled": false
+    }
+  ],
+  "outcomes": [
+    { "developerName": "Next", "nextMapElementId": "<next-id>", "order": 0 }
+  ]
+}
+```
+
+Operator `operand` values: `EMPTY` (clear the value), `VALUE` (set a literal), `COPY` (copy from another value).
+An EMPTY operation sets `valueElementToReferenceId: null` and `valueElementToApplyId` to the target. The `operand` field is accepted on POST but is not echoed back in GET responses — this is expected behaviour.
+
+**Outcomes — binding to a TABLE component (bulk action):**
+
+Outcomes (buttons) on a TABLE are defined on the input map element, not the page element. Use `pageObjectBindingId` to tie the outcome to a specific table component, and `isBulkAction: true` to render it as a button at the top of the table rather than inline per row.
+
+```json
+{
+  "developerName": "Refresh",
+  "label": "Refresh",
+  "nextMapElementId": "<target-map-element-id>",
+  "pageObjectBindingId": "<table-page-component-id>",
+  "pageActionType": "SAVE",
+  "isBulkAction": true,
+  "order": 0
+}
+```
+
+`pageObjectBindingId` is the `id` from the page element's `pageComponents` array for the TABLE component.
+
+**Outcomes — routing loopback paths (control points):**
+
+When an outcome connects back to an earlier element the platform auto-generates a single midpoint control that sits on top of the intervening elements. Override `controlPoints` with a U-shape below the flow to keep the path visually clear:
+
+```json
+"controlPoints": [
+  {"x": <source_center_x>, "y": <below_flow_y>},
+  {"x": <target_center_x>, "y": <below_flow_y>}
+]
+```
+
+- `below_flow_y` = element y + ~140 (e.g. if flow is at y:250, use y:390)
+- `source_center_x` = source element x + (width / 2)
+- `target_center_x` = target element x + (width / 2)
+
 ---
 
 ## Navigation Element
