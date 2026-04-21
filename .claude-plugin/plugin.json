@@ -1,0 +1,8 @@
+{
+  "name": "bc-flow",
+  "description": "Boomi Flow development tools: skills and commands for building, deploying, and managing Boomi Flow applications",
+  "version": "0.1.0",
+  "author": {
+    "name": "Boomi"
+  }
+}
