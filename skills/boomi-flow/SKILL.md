@@ -71,10 +71,11 @@ boomi-flow/                        # full skill path provided at skill load time
     ├── flow-list.sh               # List flows in tenant
     ├── flow-get.sh                # Get flow by ID or name
     ├── flow-create.sh             # Create or update a flow
-    ├── flow-element-list.sh       # List elements by type
-    ├── flow-element-get.sh        # Get element by type and ID
-    ├── flow-element-create.sh     # Create or update an element (from JSON file)
-    ├── flow-element-delete.sh     # Delete an element
+    ├── flow-element-list.sh       # List elements by type (not map — map elements are flow-scoped)
+    ├── flow-element-get.sh        # Get element by type and ID (not map)
+    ├── flow-element-create.sh     # Create or update a global element (not map — use flow-map-element.sh)
+    ├── flow-element-delete.sh     # Delete a global element (not map)
+    ├── flow-map-element.sh        # Create/update/get/delete a flow-scoped map element
     ├── flow-snapshot-create.sh    # Create a flow snapshot (version)
     ├── flow-snapshot-list.sh      # List snapshots for a flow
     ├── flow-snapshot-activate.sh  # Activate a snapshot
@@ -111,32 +112,48 @@ bash <skill-path>/scripts/flow-create.sh --name "My Application"
 # Save the returned flow ID
 ```
 
-**2. Create elements in dependency order**
+**2. Create global elements in dependency order**
 - Type elements first (data models — no dependencies)
 - Value elements (reference type IDs)
 - Service elements (integration points)
 - Page elements (UI — reference value IDs for binding)
-- Map elements (logic — reference page, service, value IDs)
 
-For each element, create a JSON file and push it:
+For each global element, create a JSON file and push it:
 ```bash
 bash <skill-path>/scripts/flow-element-create.sh --type type --file customer-type.json
 # Save returned element ID for use in dependent elements
 ```
 
-**3. Update flow with start element**
+**3. Create map elements — two passes**
+
+Map elements are flow-scoped and use `flow-map-element.sh`, not `flow-element-create.sh`.
+
+Pass 1 — create each element without outcomes:
 ```bash
-bash <skill-path>/scripts/flow-create.sh --id <flow-id> --file updated-flow.json
-# updated-flow.json should include startMapElementId
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --file step1.json
+# Save returned Map Element ID
 ```
 
-**4. Snapshot and activate**
+Pass 2 — re-POST each element with outcomes (now all IDs are known):
 ```bash
-bash <skill-path>/scripts/flow-snapshot-create.sh --flow-id <id> --name "v1.0"
-bash <skill-path>/scripts/flow-snapshot-activate.sh --flow-id <id> --snapshot-id <snapshot-id>
+# Add "id" and "outcomes" to each JSON, then re-POST
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --file step1-with-outcomes.json
 ```
 
-**5. Deploy**
+Also update the auto-created START element (its ID is in `flow.startMapElementId`) to add an outcome to your first step.
+
+**4. The flow is immediately live** — no snapshot or activate step needed.
+
+Get the run URL:
+```bash
+source .env
+FLOW_JSON=$(curl -s -H "x-boomi-flow-api-key: $FLOW_API_KEY" -H "manywhotenant: $FLOW_TENANT_ID" \
+  "$FLOW_BASE_URL/api/draw/1/flow/<flow-id>")
+VERSION_ID=$(echo "$FLOW_JSON" | grep -o '"versionId":"[^"]*"' | head -1 | cut -d'"' -f4)
+echo "$FLOW_BASE_URL/$FLOW_TENANT_ID/play/default/?flow-id=<flow-id>&flow-version-id=$VERSION_ID"
+```
+
+**5. Deploy to environment (optional)**
 ```bash
 bash <skill-path>/scripts/flow-deploy.sh --list-environments
 bash <skill-path>/scripts/flow-deploy.sh --release-id <release-id> --env-id <env-id>
@@ -144,22 +161,20 @@ bash <skill-path>/scripts/flow-deploy.sh --release-id <release-id> --env-id <env
 
 ### Updating an Existing Flow
 
-1. Get the current flow and elements:
+1. Get the current flow:
 ```bash
 bash <skill-path>/scripts/flow-get.sh --name "My Application"
-bash <skill-path>/scripts/flow-element-list.sh --type map
 ```
 
-2. Edit the element JSON and push:
+2. Get a map element:
 ```bash
-# Include the existing element ID in the JSON body
-bash <skill-path>/scripts/flow-element-create.sh --type map --file updated-map.json
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --get --id <element-id>
 ```
 
-3. Create a new snapshot and activate:
+3. Edit the element JSON and re-POST:
 ```bash
-bash <skill-path>/scripts/flow-snapshot-create.sh --flow-id <id> --name "v1.1" --comment "Fixed routing"
-bash <skill-path>/scripts/flow-snapshot-activate.sh --flow-id <id> --snapshot-id <id>
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --file updated-map.json
+# Include "id" in the JSON to update; omit to create new
 ```
 
 ---

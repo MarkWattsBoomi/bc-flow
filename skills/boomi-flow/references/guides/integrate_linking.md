@@ -67,33 +67,66 @@ bash <skill-path>/scripts/flow-element-create.sh --type service --file service-e
 
 ## Step 4: Use the Service in a Map Element
 
-Reference the service element's actions in a map element outcome:
+Map elements are flow-scoped. Create them via:
+```
+POST /api/draw/1/flow/{flowId}/{editingToken}/element/map
+```
+
+Use `messageActions` to invoke the service action. **Do not use `dataActions` or top-level `serviceElementId`/`serviceActionName`** — those fields have no effect at runtime.
 
 ```json
 {
   "developerName": "Call Get Customer",
-  "mapElementType": "MESSAGE",
-  "serviceElementId": "<service-element-id>",
-  "serviceActionName": "GetCustomer",
+  "elementType": "message",
   "x": 200,
   "y": 100,
+  "messageActions": [
+    {
+      "developerName": "GetCustomer",
+      "serviceElementId": "<service-element-id>",
+      "serviceElementDeveloperName": "<service-developer-name>",
+      "uriPart": "actions/GetCustomer",
+      "inputs": [
+        {
+          "developerName": "<input-name>",
+          "contentType": "ContentString",
+          "typeElementId": null,
+          "order": 0,
+          "valueElementToReferenceId": { "id": "<input-value-id>" }
+        }
+      ],
+      "outputs": [
+        {
+          "developerName": "<output-name>",
+          "contentType": "ContentObject",
+          "typeElementId": "<type-element-id>",
+          "order": 0,
+          "valueElementToApplyId": { "id": "<output-value-id>", "typeElementPropertyId": null }
+        }
+      ],
+      "order": 0,
+      "serviceActionName": null,
+      "disabled": false
+    }
+  ],
+  "dataActions": null,
   "outcomes": [
     {
       "developerName": "Continue",
       "nextMapElementId": "<next-map-element-id>",
       "order": 0
     }
-  ],
-  "dataActions": [
-    {
-      "developerName": "Map output to value",
-      "crudOperationType": "SAVE",
-      "valueElementToReferenceId": { "id": "<customer-value-id>" },
-      "order": 0
-    }
   ]
 }
 ```
+
+Key fields:
+- `uriPart`: from the service element's action definition (e.g. `"actions/GetCustomer"`)
+- `outputs[].valueElementToApplyId`: value element to **save the response into**
+- `serviceActionName`: always `null` — action is identified by `uriPart`
+- `dataActions`: set to `null` when using `messageActions`
+
+> ⚠️ Remember the two-pass rule: create all map elements without outcomes first, then re-POST with outcomes once all element IDs are known.
 
 ## Boomi Integrate Side Requirements
 

@@ -66,17 +66,34 @@ bash <skill-path>/scripts/flow-element-get.sh --type service --id <element-id>
 ```
 
 ### flow-element-create.sh
-Create or update an element (POST to Draw API).
+Create or update a **global** element. Does **not** support map elements — use `flow-map-element.sh` instead.
 ```bash
 bash <skill-path>/scripts/flow-element-create.sh --type type --file customer-type.json
 bash <skill-path>/scripts/flow-element-create.sh --type page --file customer-form.json
-bash <skill-path>/scripts/flow-element-create.sh --type map --file step1.json
+bash <skill-path>/scripts/flow-element-create.sh --type value --file my-value.json
+# Types: service, page, type, value, navigation, macro, theme, tag, group, identityprovider, customPageComponent
 ```
 
 ### flow-element-delete.sh
-Delete an element.
+Delete a global element.
 ```bash
 bash <skill-path>/scripts/flow-element-delete.sh --type page --id <element-id>
+```
+
+### flow-map-element.sh
+Create, update, get, or delete a **flow-scoped map element**. Always use this for map elements.
+```bash
+# Create (Pass 1 — no outcomes yet)
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --file step.json
+
+# Update with outcomes (Pass 2 — include "id" in JSON)
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --file step-with-outcomes.json
+
+# Get
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --get --id <element-id>
+
+# Delete
+bash <skill-path>/scripts/flow-map-element.sh --flow-id <id> --delete --id <element-id>
 ```
 
 ---

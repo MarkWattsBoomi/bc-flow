@@ -43,7 +43,13 @@ All endpoints require `x-boomi-flow-api-key` and `manywhotenant` headers.
 | GET | `/draw/2/flow/{id}/releases` | Get releases for a flow |
 | GET | `/draw/2/flow/{id}/snapshot/{versionId}/diff` | Diff two snapshots |
 
-## Elements (applies to all element types)
+## HTTP Methods
+
+The Boomi Flow Draw API is **POST-only** for all mutations. There is no PUT method.
+
+---
+
+## Elements (non-map types)
 
 | Method | Path | Description |
 |---|---|---|
@@ -52,7 +58,32 @@ All endpoints require `x-boomi-flow-api-key` and `manywhotenant` headers.
 | GET | `/draw/1/element/{type}/{id}` | Get element |
 | DELETE | `/draw/1/element/{type}/{id}` | Delete element |
 
-**Element types:** `service`, `page`, `type`, `value`, `map`, `navigation`, `macro`, `theme`, `tag`, `group`, `identityprovider`, `customPageComponent`
+**Element types (global):** `service`, `page`, `type`, `value`, `navigation`, `macro`, `theme`, `tag`, `group`, `identityprovider`, `customPageComponent`
+
+> ⚠️ `map` is **not** a valid type for these endpoints. Map elements are flow-scoped — see below.
+
+---
+
+## Map Elements (flow-scoped)
+
+Map elements use a different, flow-scoped endpoint that includes the flow ID and current editing token:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/draw/1/flow/{flowId}/{editingToken}/element/map` | Create or update a map element |
+| GET | `/draw/1/flow/{flowId}/{editingToken}/element/map/{id}` | Get a map element |
+| DELETE | `/draw/1/flow/{flowId}/{editingToken}/element/map/{id}` | Delete a map element |
+
+**Key rules:**
+- A fresh `editingToken` must be obtained (GET the flow) before each POST
+- `elementType` uses **lowercase** values: `start`, `message`, `input`, `step`, `operator`, `modal`
+- Create all elements without outcomes first; then re-POST each with outcomes once all IDs are known
+- Never reference an element ID in an outcome before that element has been created
+
+**Minimal map element body:**
+```json
+{ "developerName": "My Step", "elementType": "input", "x": 200, "y": 250 }
+```
 
 ## Service Element Operations
 
@@ -84,10 +115,10 @@ All endpoints require `x-boomi-flow-api-key` and `manywhotenant` headers.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/draw/1/graph/flow` | Get flow graph (positions) |
-| POST | `/draw/1/graph/flow` | Update flow graph |
-| POST | `/draw/2/graph/flow/{id}` | Get flow graph (v2) |
-| PUT | `/draw/2/graph/flow` | Update flow graph (v2) |
+| GET | `/draw/2/graph/flow/{id}` | Get flow graph (positions and connections) |
+| POST | `/draw/1/graph/flow` | Update flow graph layout |
+
+> ⚠️ **The graph API is layout-only.** It only persists: `developerName`, `developerSummary`, `x`, `y`, `height`, `width`. It cannot create map elements or wire outcomes. Use the flow-scoped map element endpoint for all logic changes.
 
 ## Integration Discovery
 

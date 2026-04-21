@@ -5,8 +5,19 @@
 A Boomi Flow application moves through these stages from creation to live usage:
 
 ```
-Create Flow → Add Elements → Snapshot → Activate Snapshot → Create Release → Deploy → Live
+Create Flow → Add Elements → Live (immediately)
 ```
+
+**There is no separate snapshot or activate step required to make a flow runnable.** Every POST update to a flow makes it live immediately. The flow is versioned automatically on each change — the current versionId is always the live version.
+
+**Snapshots are history only** — they provide access to the flow's past states but are not a deployment mechanism. Do not attempt to create or activate a snapshot as part of a build workflow.
+
+To run a flow after building: GET the flow to retrieve the current `versionId`, then construct the run URL:
+```
+{FLOW_BASE_URL}/{FLOW_TENANT_ID}/play/default/?flow-id={flowId}&flow-version-id={versionId}
+```
+
+> ⚠️ The `versionId` changes on every edit. Always GET the flow immediately before constructing a run URL.
 
 ## Stage 1: Create Flow
 
@@ -32,8 +43,39 @@ Common workflow:
 2. Create Value elements (variables)
 3. Create Service elements (integrations)
 4. Create Page elements (UI screens)
-5. Create Map elements (flow logic, outcomes)
-6. Update the Flow to reference its start map element
+5. Create Map elements — **two-pass process** (see Map Elements below)
+6. The flow's `startMapElementId` is auto-set to a START element on creation
+
+### Map Elements — Two-Pass Creation
+
+Map elements are **flow-scoped** and use a different endpoint than other elements:
+```
+POST /api/draw/1/flow/{flowId}/{editingToken}/element/map
+```
+GET and DELETE use the same path with the element ID appended.
+
+**Important rules:**
+- The Flow API is **POST-only** — there is no PUT method
+- `elementType` uses **lowercase** values: `start`, `message`, `input`, `step`, `operator`, `modal`
+- Create all map elements **without outcomes** first, then re-POST each with outcomes once all IDs are known
+- Never reference a map element ID in an outcome before that element has been created
+
+**Pass 1 — Create each element (no outcomes):**
+```bash
+# Fresh editingToken required for each POST
+curl -X POST "$FLOW_BASE_URL/api/draw/1/flow/$FLOW_ID/$TOKEN/element/map" \
+  -d '{"developerName":"My Step","elementType":"input","x":200,"y":250}'
+# Capture the returned "id" field
+```
+
+**Pass 2 — Re-POST each element with outcomes filled in:**
+```bash
+curl -X POST "$FLOW_BASE_URL/api/draw/1/flow/$FLOW_ID/$TOKEN/element/map" \
+  -d '{"id":"<element-id>","developerName":"My Step","elementType":"input","x":200,"y":250,
+       "outcomes":[{"developerName":"Next","nextMapElementId":"<other-id>","order":0}]}'
+```
+
+The auto-created START element (`startMapElementId` from the flow response) should also be updated in Pass 2 to add an outcome pointing to the first real step.
 
 ### Update Flow to Add Start Element
 
@@ -50,7 +92,32 @@ After creating map elements, update the flow to set the starting map element:
 bash <skill-path>/scripts/flow-create.sh --id <flow-id> --file updated-flow.json
 ```
 
-## Stage 3: Snapshot
+## Stage 3: Run the Flow
+
+After building elements and wiring outcomes, the flow is immediately live. Construct the run URL:
+
+```bash
+source .env
+FLOW_JSON=$(curl -s -H "x-boomi-flow-api-key: $FLOW_API_KEY" -H "manywhotenant: $FLOW_TENANT_ID" \
+  "$FLOW_BASE_URL/api/draw/1/flow/$FLOW_ID")
+VERSION_ID=$(echo "$FLOW_JSON" | grep -o '"versionId":"[^"]*"' | head -1 | cut -d'"' -f4)
+echo "$FLOW_BASE_URL/$FLOW_TENANT_ID/play/default/?flow-id=$FLOW_ID&flow-version-id=$VERSION_ID"
+```
+
+---
+
+## Snapshots (History Only)
+
+Snapshots record the flow's history — they are **not** required to make a flow runnable.
+
+```bash
+# List history
+bash <skill-path>/scripts/flow-snapshot-list.sh --flow-id <flow-id>
+```
+
+---
+
+## Stage 4 (Optional): Deploy to Environment
 
 Snapshot captures the current state of all elements as an immutable version.
 
@@ -64,16 +131,6 @@ bash <skill-path>/scripts/flow-snapshot-create.sh \
 List existing snapshots:
 ```bash
 bash <skill-path>/scripts/flow-snapshot-list.sh --flow-id <flow-id>
-```
-
-## Stage 4: Activate Snapshot
-
-Activating makes the snapshot the "current" version. Users running the flow see this version.
-
-```bash
-bash <skill-path>/scripts/flow-snapshot-activate.sh \
-  --flow-id <flow-id> \
-  --snapshot-id <snapshot-id>
 ```
 
 ## Stage 5: Deploy to Environment

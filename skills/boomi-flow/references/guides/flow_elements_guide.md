@@ -114,31 +114,75 @@ Defines a UI screen. Pages contain page containers which contain page components
 
 **Component types:** `PRESENTATION`, `INPUT`, `SELECT`, `TEXTAREA`, `CHECKBOX`, `RADIO`, `HIDDEN`, `IMAGE`, `CONTENT`, `TABLE`, `PAGINATION`, `COMBOBOX`, `FILES`, `LIST`, `OUTCOMES`
 
+**Important:** The `elementType` for a page must be `PAGE_LAYOUT` (not `PAGE`).
+
+**Page components are a flat top-level array** — do NOT nest them inside `pageContainers`. Each component references its container via `pageContainerId` (the container's GUID) AND `pageContainerDeveloperName`. Both fields are required.
+
 **Minimum page element:**
 ```json
 {
+  "elementType": "PAGE_LAYOUT",
   "developerName": "Customer Form",
   "label": "Enter Customer Details",
   "pageContainers": [
     {
+      "id": "<container-guid-after-first-save>",
       "developerName": "Main",
       "label": "Customer Details",
       "containerType": "VERTICAL_FLOW",
       "order": 0,
-      "pageContainers": [],
-      "pageComponents": [
-        {
-          "developerName": "firstName",
-          "label": "First Name",
-          "componentType": "INPUT",
-          "contentType": "ContentString",
-          "isRequired": true,
-          "order": 0,
-          "columns": [],
-          "attributes": null,
-          "pageContainerDeveloperName": "Main"
-        }
-      ]
+      "pageContainers": []
+    }
+  ],
+  "pageComponents": [
+    {
+      "developerName": "firstName",
+      "label": "First Name",
+      "componentType": "INPUT",
+      "contentType": "ContentString",
+      "isRequired": true,
+      "order": 0,
+      "pageContainerDeveloperName": "Main",
+      "pageContainerId": "<container-guid-after-first-save>"
+    }
+  ]
+}
+```
+
+> ⚠️ The `pageContainerId` GUID is assigned by the platform on the first save. Workflow: (1) POST the page with containers only, (2) capture container IDs from the response, (3) re-POST with `pageComponents` referencing those IDs.
+
+### TABLE Component — Data Binding
+
+A TABLE component has two distinct value bindings:
+
+| Field | Purpose | Platform term |
+|---|---|---|
+| `valueElementDataBindingReferenceId` | **Data source** — the list value that populates the rows | Data binding |
+| `valueElementValueBindingReferenceId` | **Selected row** — the value element that receives the row the user clicks | State value |
+
+```json
+{
+  "developerName": "ComponentsTable",
+  "componentType": "TABLE",
+  "contentType": "ContentList",
+  "pageContainerDeveloperName": "Main",
+  "pageContainerId": "<container-guid>",
+  "valueElementDataBindingReferenceId": {
+    "id": "<list-value-id>",
+    "typeElementPropertyId": null
+  },
+  "valueElementValueBindingReferenceId": {
+    "id": "<selected-item-value-id>",
+    "typeElementPropertyId": null
+  },
+  "columns": [
+    {
+      "developerName": "name",
+      "label": "Name",
+      "order": 0,
+      "isDisplayValue": true,
+      "componentType": "PRESENTATION",
+      "typeElementPropertyId": "<type-property-guid>"
     }
   ]
 }
@@ -150,20 +194,29 @@ Defines a UI screen. Pages contain page containers which contain page components
 
 The core logic unit. Each map element represents a step in the flow. Map elements have **Outcomes** (transitions to other map elements).
 
-**Map element types:** `START`, `STEP`, `INPUT`, `DECISION`, `OPERATOR`, `MESSAGE`, `DATABASE_LOAD`, `DATABASE_SAVE`, `DATABASE_DELETE`, `RETURN`, `SUB_FLOW`, `WAIT`, `GROUP_REFERENCE`
+**Map elements are flow-scoped.** They use a different endpoint than other elements:
+```
+POST /api/draw/1/flow/{flowId}/{editingToken}/element/map
+```
+A fresh `editingToken` (GET the flow) is required before each POST.
 
-**Minimum step map element:**
+**`elementType` values are lowercase:** `start`, `input`, `step`, `message`, `operator`, `modal`, `decision`, `database_load`, `database_save`, `database_delete`, `return`, `sub_flow`, `wait`
+
+**Creation order — two passes:**
+1. POST each element with no outcomes → capture IDs
+2. Re-POST each element with its `id` and outcomes referencing the other elements' IDs
+
+**Input map element (shows a page, waits for user):**
 ```json
 {
   "developerName": "Show Customer Form",
-  "mapElementType": "INPUT",
+  "elementType": "input",
   "pageElementId": "<page-element-id>",
   "x": 100,
   "y": 100,
   "outcomes": [
     {
       "developerName": "Submit",
-      "label": "Submit",
       "nextMapElementId": "<next-map-element-id>",
       "order": 0
     }
@@ -171,39 +224,60 @@ The core logic unit. Each map element represents a step in the flow. Map element
 }
 ```
 
-**Decision map element:**
+**Message map element (calls a service action):**
+
+Use `messageActions` to invoke a service. Do **not** use `dataActions` or top-level `serviceElementId`/`serviceActionName` — those have no effect at runtime.
+
 ```json
 {
-  "developerName": "Check Customer Status",
-  "mapElementType": "DECISION",
-  "x": 300,
-  "y": 100,
-  "outcomes": [
+  "developerName": "Get Components",
+  "elementType": "message",
+  "x": 200,
+  "y": 250,
+  "messageActions": [
     {
-      "developerName": "Active",
-      "label": "Customer is active",
-      "nextMapElementId": "<active-map-id>",
-      "order": 0,
-      "comparison": {
-        "comparisonType": "AND",
-        "comparisons": [
-          {
-            "leftValueElementToReferenceId": { "id": "<status-value-id>" },
-            "criteriaType": "EQUAL",
-            "rightContentValue": "active"
+      "developerName": "GetComponents",
+      "serviceElementId": "<service-element-id>",
+      "serviceElementDeveloperName": "ComponentStore",
+      "uriPart": "actions/GetComponents",
+      "inputs": [
+        {
+          "developerName": "keyword",
+          "contentType": "ContentString",
+          "typeElementId": null,
+          "order": 0,
+          "valueElementToReferenceId": null
+        }
+      ],
+      "outputs": [
+        {
+          "developerName": "Components",
+          "contentType": "ContentList",
+          "typeElementId": "<type-element-id>",
+          "order": 0,
+          "valueElementToApplyId": {
+            "id": "<value-element-id>",
+            "typeElementPropertyId": null
           }
-        ]
-      }
-    },
-    {
-      "developerName": "Inactive",
-      "label": "Otherwise",
-      "nextMapElementId": "<inactive-map-id>",
-      "order": 1
+        }
+      ],
+      "order": 0,
+      "serviceActionName": null,
+      "disabled": false
     }
+  ],
+  "dataActions": null,
+  "outcomes": [
+    { "developerName": "Next", "nextMapElementId": "<next-id>", "order": 0 }
   ]
 }
 ```
+
+Key `messageActions` fields:
+- `uriPart`: from the service element's action definition (e.g. `"actions/GetComponents"`)
+- `outputs[].valueElementToApplyId`: the value to **save the response into**
+- `serviceActionName`: always `null` — action is identified by `uriPart`
+- `dataActions`: set to `null` when using `messageActions`
 
 ---
 
