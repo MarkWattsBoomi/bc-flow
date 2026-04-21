@@ -72,7 +72,7 @@ Environments are named deployment targets (e.g. Test, Production).
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/environment/1/environment` | List all environments |
+| GET | `/environment/1` | List all environments |
 | POST | `/environment/1/environment` | Create or update environment |
 | GET | `/environment/1/environment/{id}` | Get environment |
 | DELETE | `/environment/1/environment/{id}` | Delete test environment |
